@@ -33,6 +33,9 @@ test("handleRequest: corpus lifecycle then run", async () => {
   const list = await handleRequest(store, "GET", "/corpora", undefined);
   assert.equal((list.payload as { corpora: unknown[] }).corpora.length, 1);
 
+  const chunksRes = await handleRequest(store, "GET", `/corpora/${corpusId}/chunks`, undefined);
+  assert.ok((chunksRes.payload as { chunks: unknown[] }).chunks.length > 0);
+
   const record = (await store.getCorpus(corpusId))!;
   const dbChunk = record.chunks.find((c) => c.text.includes("inverted index"))!;
 

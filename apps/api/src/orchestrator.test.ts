@@ -80,6 +80,8 @@ test("reranking populates rerankScore and latency", async () => {
   });
   assert.ok(perQuery[0].rerankLatencyMs >= 0);
   assert.notEqual(perQuery[0].candidates[0].rerankScore, null);
+  // Every candidate carries the pre-rerank rank so the UI can show movement.
+  assert.ok(perQuery[0].candidates.every((c) => typeof c.retrievalRank === "number"));
 });
 
 test("runExperiment rejects an invalid config", async () => {

@@ -82,6 +82,8 @@ export interface ExperimentRun {
 
 export interface RankedCandidate {
   rank: number;
+  /** Rank this candidate held after retrieval, before reranking. */
+  retrievalRank: number;
   chunkId: Id;
   docId: Id;
   sparseScore: number | null;

@@ -69,6 +69,17 @@ export async function handleRequest(
       if (!record) throw new HttpError(404, `Unknown corpus: ${segments[1]}`);
       return { status: 200, payload: { corpus: record.corpus, chunkCount: record.chunks.length } };
     }
+    if (method === "GET" && segments.length === 3 && segments[2] === "chunks") {
+      const record = await store.getCorpus(segments[1]);
+      if (!record) throw new HttpError(404, `Unknown corpus: ${segments[1]}`);
+      const chunks = record.chunks.map((c) => ({
+        id: c.id,
+        docId: c.docId,
+        chunkOrder: c.chunkOrder,
+        text: c.text,
+      }));
+      return { status: 200, payload: { chunks } };
+    }
   }
 
   // /runs

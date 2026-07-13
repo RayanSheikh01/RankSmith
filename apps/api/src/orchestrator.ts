@@ -58,8 +58,10 @@ function toRankedCandidate(
   mode: RunConfigRecord["retrievalMode"],
 ): RankedCandidate {
   const rerankScore = "rerankScore" in c ? c.rerankScore : null;
+  const retrievalRank = "retrievalRank" in c ? c.retrievalRank : c.rank;
   return {
     rank: c.rank,
+    retrievalRank,
     chunkId: c.chunkId,
     docId: c.docId,
     sparseScore: mode === "bm25" ? c.score : null,

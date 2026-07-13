@@ -2,6 +2,8 @@ import type { Chunk, Corpus, RunConfigRecord } from "@ranksmith/core";
 import { newCorpusId, newId } from "@ranksmith/observability";
 import { ingestDocument, type ChunkingPreset } from "@ranksmith/ingestion";
 import type { Qrels } from "@ranksmith/evaluation";
+import { InMemoryRepository, FileRepository, type Repository } from "@ranksmith/storage";
+import { join } from "node:path";
 import { runExperiment, type EvalQuery, type RunOutput } from "./orchestrator.js";
 
 export interface DocumentInput {
@@ -31,12 +33,30 @@ export interface CreateRunRequest {
   evalK?: number;
 }
 
-/** In-memory repositories for corpora and experiment runs. */
-export class RankSmithStore {
-  private readonly corpora = new Map<string, CorpusRecord>();
-  private readonly runs = new Map<string, RunOutput>();
+export interface StoreRepositories {
+  corpora: Repository<CorpusRecord>;
+  runs: Repository<RunOutput>;
+}
 
-  createCorpus(name: string, documents: DocumentInput[], preset: ChunkingPreset): CorpusRecord {
+/**
+ * Application store over injectable repositories. Defaults to in-memory; pass
+ * filesystem repositories (see `fileRepositories`) to persist corpora and run
+ * artifacts across restarts.
+ */
+export class RankSmithStore {
+  private readonly corpora: Repository<CorpusRecord>;
+  private readonly runs: Repository<RunOutput>;
+
+  constructor(repositories?: StoreRepositories) {
+    this.corpora = repositories?.corpora ?? new InMemoryRepository<CorpusRecord>();
+    this.runs = repositories?.runs ?? new InMemoryRepository<RunOutput>();
+  }
+
+  async createCorpus(
+    name: string,
+    documents: DocumentInput[],
+    preset: ChunkingPreset,
+  ): Promise<CorpusRecord> {
     const corpus: Corpus = {
       id: newCorpusId(),
       name,
@@ -56,20 +76,20 @@ export class RankSmithStore {
       chunks.push(...result.chunks);
     }
     const record = { corpus, chunks };
-    this.corpora.set(corpus.id, record);
+    await this.corpora.save(corpus.id, record);
     return record;
   }
 
-  getCorpus(id: string): CorpusRecord | undefined {
+  async getCorpus(id: string): Promise<CorpusRecord | undefined> {
     return this.corpora.get(id);
   }
 
-  listCorpora(): Corpus[] {
-    return [...this.corpora.values()].map((r) => r.corpus);
+  async listCorpora(): Promise<Corpus[]> {
+    return (await this.corpora.list()).map((r) => r.corpus);
   }
 
   async createRun(request: CreateRunRequest): Promise<RunOutput> {
-    const record = this.corpora.get(request.corpusId);
+    const record = await this.corpora.get(request.corpusId);
     if (!record) {
       throw new Error(`Unknown corpusId: ${request.corpusId}`);
     }
@@ -87,15 +107,23 @@ export class RankSmithStore {
       commitHash: request.commitHash,
       evalK: request.evalK,
     });
-    this.runs.set(output.run.id, output);
+    await this.runs.save(output.run.id, output);
     return output;
   }
 
-  getRun(id: string): RunOutput | undefined {
+  async getRun(id: string): Promise<RunOutput | undefined> {
     return this.runs.get(id);
   }
 
-  listRuns(): RunOutput["run"][] {
-    return [...this.runs.values()].map((r) => r.run);
+  async listRuns(): Promise<RunOutput["run"][]> {
+    return (await this.runs.list()).map((r) => r.run);
   }
+}
+
+/** Filesystem-backed repositories rooted at `data/` by default. */
+export function fileRepositories(baseDir = "data"): StoreRepositories {
+  return {
+    corpora: new FileRepository<CorpusRecord>(join(baseDir, "corpora")),
+    runs: new FileRepository<RunOutput>(join(baseDir, "runs")),
+  };
 }

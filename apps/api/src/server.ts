@@ -58,14 +58,14 @@ export async function handleRequest(
       if (!b.name || !Array.isArray(b.documents) || b.documents.length === 0) {
         throw new HttpError(400, "Body requires 'name' and a non-empty 'documents' array.");
       }
-      const record = store.createCorpus(b.name, b.documents, b.preset ?? DEFAULT_PRESET);
+      const record = await store.createCorpus(b.name, b.documents, b.preset ?? DEFAULT_PRESET);
       return { status: 201, payload: { corpus: record.corpus, chunkCount: record.chunks.length } };
     }
     if (method === "GET" && segments.length === 1) {
-      return { status: 200, payload: { corpora: store.listCorpora() } };
+      return { status: 200, payload: { corpora: await store.listCorpora() } };
     }
     if (method === "GET" && segments.length === 2) {
-      const record = store.getCorpus(segments[1]);
+      const record = await store.getCorpus(segments[1]);
       if (!record) throw new HttpError(404, `Unknown corpus: ${segments[1]}`);
       return { status: 200, payload: { corpus: record.corpus, chunkCount: record.chunks.length } };
     }
@@ -86,15 +86,15 @@ export async function handleRequest(
       }
     }
     if (method === "GET" && segments.length === 1) {
-      return { status: 200, payload: { runs: store.listRuns() } };
+      return { status: 200, payload: { runs: await store.listRuns() } };
     }
     if (method === "GET" && segments.length === 2) {
-      const output = store.getRun(segments[1]);
+      const output = await store.getRun(segments[1]);
       if (!output) throw new HttpError(404, `Unknown run: ${segments[1]}`);
       return { status: 200, payload: { run: output.run, metrics: output.metrics } };
     }
     if (method === "GET" && segments.length === 3 && segments[2] === "results") {
-      const output = store.getRun(segments[1]);
+      const output = await store.getRun(segments[1]);
       if (!output) throw new HttpError(404, `Unknown run: ${segments[1]}`);
       return { status: 200, payload: { results: output.perQuery } };
     }

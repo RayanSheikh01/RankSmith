@@ -243,6 +243,14 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
         <label class="field"><span>BM25 b</span><input id="b" type="number" value="0.75" step="0.05" /></label>
         <label class="field"><span>RRF k</span><input id="rrfK" type="number" value="60" min="1" /></label>
       </div>
+      <div class="row">
+        <label class="field"><span>Dense model (dense &amp; hybrid)</span>
+          <select id="denseModel">
+            <option value="hashing-bow-v1">hashing-bow-v1 — fast baseline, no download</option>
+            <option value="Xenova/all-MiniLM-L6-v2">all-MiniLM-L6-v2 — real embeddings (~90MB first run)</option>
+          </select>
+        </label>
+      </div>
       <button id="runBtn" class="primary" disabled>Run comparison</button>
     </section>
 
@@ -370,7 +378,7 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       id: "cfg-" + mode,
       retrievalMode: mode,
       bm25: { k1: Number(el("k1").value), b: Number(el("b").value) },
-      dense: { modelName: "hashing-bow-v1" },
+      dense: { modelName: el("denseModel").value },
       hybrid: { fusionType: "rrf", sparseWeight: 0.5, denseWeight: 0.5, rrfK: Number(el("rrfK").value) },
       topK: Number(el("topK").value),
       rerankDepth: rerankDepth,

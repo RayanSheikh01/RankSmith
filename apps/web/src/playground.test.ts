@@ -13,9 +13,12 @@ test("playgroundHtml is a complete, self-contained HTML document", () => {
 });
 
 test("playgroundHtml wires the core playground controls and endpoints", () => {
-  for (const id of ["buildBtn", "selectAllBtn", "runBtn", "chunks", "metrics", "ladder"]) {
+  for (const id of ["buildBtn", "selectAllBtn", "runBtn", "chunks", "metrics", "ladder", "denseModel"]) {
     assert.ok(playgroundHtml.includes('id="' + id + '"'), "missing #" + id);
   }
   assert.ok(playgroundHtml.includes("/corpora"));
   assert.ok(playgroundHtml.includes("/runs"));
+  // Dense model selector offers both the baseline and the real embedder.
+  assert.ok(playgroundHtml.includes('value="hashing-bow-v1"'), "missing hashing option");
+  assert.ok(playgroundHtml.includes('value="Xenova/all-MiniLM-L6-v2"'), "missing MiniLM option");
 });

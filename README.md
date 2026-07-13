@@ -7,7 +7,7 @@ Import a corpus, run retrieval configs against a query set, and inspect per-quer
 ## Features
 
 - **Ingestion & chunking** — import documents, normalize text, chunk with metadata, version corpus snapshots.
-- **Retrieval baselines** — BM25 (sparse), dense embeddings, and hybrid fusion (RRF / weighted).
+- **Retrieval baselines** — BM25 (sparse), dense embeddings (local `Xenova/all-MiniLM-L6-v2` via transformers.js, or a zero-dependency `hashing-bow-v1` baseline), and hybrid fusion (RRF / weighted).
 - **Cross-encoder reranking** — rerank the top-K candidates with configurable depth.
 - **Evaluation** — Recall@k, Precision@k, MRR, nDCG, plus per-stage latency; compare runs side by side.
 - **Reproducible runs** — each run persists its config, corpus/index snapshot, and results.
@@ -59,6 +59,8 @@ Then open http://localhost:3000 for the playground UI.
 
 - `PORT` — server port (default `3000`)
 - `DATA_DIR` — artifact directory (default `data`)
+
+> **Dense model download:** the first run using `dense.modelName: "Xenova/all-MiniLM-L6-v2"` downloads the model (~90MB) to the transformers.js cache; subsequent runs are offline. Use `hashing-bow-v1` for a zero-download baseline.
 
 ## API
 

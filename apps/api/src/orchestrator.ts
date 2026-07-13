@@ -13,7 +13,7 @@ import {
   type Retriever,
 } from "@ranksmith/retrieval";
 import { Bm25Index } from "@ranksmith/indexing-sparse";
-import { DenseIndex, HashingEmbedder, type Embedder } from "@ranksmith/indexing-dense";
+import { DenseIndex, resolveEmbedder, type Embedder } from "@ranksmith/indexing-dense";
 import {
   LexicalCrossEncoder,
   rerankCandidates,
@@ -106,7 +106,7 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
   const startedAt = new Date().toISOString();
   const evalK = input.evalK ?? input.config.topK;
 
-  const embedder = input.embedder ?? new HashingEmbedder();
+  const embedder = input.embedder ?? resolveEmbedder(input.config.dense.modelName);
   const crossEncoder = input.crossEncoder ?? new LexicalCrossEncoder();
   const textOf = new Map(input.chunks.map((c) => [c.id, c.text]));
 

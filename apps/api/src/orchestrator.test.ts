@@ -95,3 +95,11 @@ test("runExperiment rejects an invalid config", async () => {
     /Invalid run config/,
   );
 });
+
+test("runExperiment rejects an unknown dense model", async () => {
+  const cfg: RunConfigRecord = { ...baseConfig("dense"), dense: { modelName: "bogus-model" } };
+  await assert.rejects(
+    runExperiment({ config: cfg, chunks: buildCorpus(), queries: [], querySetId: "qs_1" }),
+    /Unknown embedding model "bogus-model"/,
+  );
+});

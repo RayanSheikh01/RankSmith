@@ -13,7 +13,7 @@ test("playgroundHtml is a complete, self-contained HTML document", () => {
 });
 
 test("playgroundHtml wires the core playground controls and endpoints", () => {
-  for (const id of ["buildBtn", "runBtn", "chunks", "metrics", "ladder"]) {
+  for (const id of ["buildBtn", "selectAllBtn", "runBtn", "chunks", "metrics", "ladder"]) {
     assert.ok(playgroundHtml.includes('id="' + id + '"'), "missing #" + id);
   }
   assert.ok(playgroundHtml.includes("/corpora"));

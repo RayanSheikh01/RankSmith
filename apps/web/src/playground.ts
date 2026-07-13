@@ -131,6 +131,7 @@ export const playgroundHtml = `<!doctype html>
   }
   button.primary:hover { filter: brightness(1.08); }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.mini { padding: 6px 10px; font-size: 11px; margin-bottom: 8px; }
 
   .modes { display: flex; gap: 8px; flex-wrap: wrap; }
   .chk {
@@ -223,6 +224,7 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
         <input id="query" type="text" value="inverted index keyword search" />
       </label>
       <p class="hint">Check the chunks that are truly relevant — these become the qrels the metrics score against.</p>
+      <button id="selectAllBtn" class="mini" disabled>Select all relevant</button>
       <div id="chunks" class="chunks"><div class="chunkrow"><span class="cid">build a corpus to load chunks</span></div></div>
 
       <div class="eyebrow"><span class="idx">C</span> Run config</div>
@@ -320,6 +322,8 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       var loaded = await api("GET", "/corpora/" + state.corpusId + "/chunks");
       state.chunks = loaded.chunks;
       renderChunks();
+      el("selectAllBtn").disabled = false;
+      el("selectAllBtn").textContent = "Select all relevant";
       el("runBtn").disabled = false;
       setStatus(created.corpus.id + " · " + state.chunks.length + " chunks", true);
     } catch (e) {
@@ -508,7 +512,18 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
     })(modeNodes[i]);
   }
 
+  function toggleAllRelevant() {
+    var checks = document.querySelectorAll(".relchk");
+    if (checks.length === 0) return;
+    var allChecked = true;
+    for (var i = 0; i < checks.length; i++) { if (!checks[i].checked) { allChecked = false; break; } }
+    var next = !allChecked;
+    for (var j = 0; j < checks.length; j++) { checks[j].checked = next; }
+    el("selectAllBtn").textContent = next ? "Clear all" : "Select all relevant";
+  }
+
   el("buildBtn").addEventListener("click", buildCorpus);
+  el("selectAllBtn").addEventListener("click", toggleAllRelevant);
   el("runBtn").addEventListener("click", runComparison);
 })();
 </script>

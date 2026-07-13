@@ -67,9 +67,14 @@ test("createServer serves over HTTP", async () => {
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const { port } = server.address() as AddressInfo;
   try {
-    const res = await fetch(`http://localhost:${port}/`);
-    assert.equal(res.status, 200);
-    const json = (await res.json()) as { service: string };
+    const root = await fetch(`http://localhost:${port}/`);
+    assert.equal(root.status, 200);
+    assert.match(root.headers.get("content-type") ?? "", /text\/html/);
+    assert.match(await root.text(), /RankSmith/);
+
+    const health = await fetch(`http://localhost:${port}/health`);
+    assert.equal(health.status, 200);
+    const json = (await health.json()) as { service: string };
     assert.equal(json.service, "ranksmith-api");
 
     const post = await fetch(`http://localhost:${port}/corpora`, {

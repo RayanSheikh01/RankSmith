@@ -1,6 +1,7 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import type { ChunkingPreset } from "@ranksmith/ingestion";
 import { Logger } from "@ranksmith/observability";
+import { playgroundHtml } from "@ranksmith/web";
 import { RankSmithStore, type CreateRunRequest, type DocumentInput } from "./store.js";
 
 const DEFAULT_PRESET: ChunkingPreset = { chunkSize: 200, overlap: 40 };
@@ -43,13 +44,28 @@ export interface ServerOptions {
  * Route a single request against the store. Exposed separately from the HTTP
  * server so it can be unit-tested and reused behind other transports.
  */
+export interface RouteResult {
+  status: number;
+  payload: unknown;
+  /** Defaults to application/json; set to "text/html" to serve the payload as-is. */
+  contentType?: "application/json" | "text/html";
+}
+
 export async function handleRequest(
   store: RankSmithStore,
   method: string,
   path: string,
   body: unknown,
-): Promise<{ status: number; payload: unknown }> {
+): Promise<RouteResult> {
   const segments = path.split("/").filter(Boolean);
+
+  // Playground UI at the root; JSON health check moved to /health.
+  if (method === "GET" && segments.length === 0) {
+    return { status: 200, payload: playgroundHtml, contentType: "text/html" };
+  }
+  if (method === "GET" && segments.length === 1 && segments[0] === "health") {
+    return { status: 200, payload: { service: "ranksmith-api", ok: true } };
+  }
 
   // /corpora
   if (segments[0] === "corpora") {
@@ -111,10 +127,6 @@ export async function handleRequest(
     }
   }
 
-  if (method === "GET" && segments.length === 0) {
-    return { status: 200, payload: { service: "ranksmith-api", ok: true } };
-  }
-
   throw new HttpError(404, `No route for ${method} /${segments.join("/")}`);
 }
 
@@ -129,9 +141,14 @@ export function createServer(options: ServerOptions = {}): Server {
     void (async () => {
       try {
         const body = method === "POST" ? await readJsonBody(req) : undefined;
-        const { status, payload } = await handleRequest(store, method, path, body);
+        const { status, payload, contentType } = await handleRequest(store, method, path, body);
         logger.info("request", { method, path, status });
-        sendJson(res, status, payload);
+        if (contentType === "text/html") {
+          res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
+          res.end(String(payload));
+        } else {
+          sendJson(res, status, payload);
+        }
       } catch (err) {
         const status = err instanceof HttpError ? err.status : 500;
         logger.warn("request failed", { method, path, status, error: (err as Error).message });

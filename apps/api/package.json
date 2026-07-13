@@ -19,6 +19,7 @@
     "@ranksmith/indexing-dense": "*",
     "@ranksmith/reranking": "*",
     "@ranksmith/evaluation": "*",
-    "@ranksmith/storage": "*"
+    "@ranksmith/storage": "*",
+    "@ranksmith/web": "*"
   }
 }

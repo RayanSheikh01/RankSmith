@@ -6,6 +6,7 @@ import {
   type Retriever,
 } from "@ranksmith/retrieval";
 import { dot, type Embedder } from "./embedder.js";
+import type { StoredDenseVectors } from "./vector-cache.js";
 
 interface DenseEntry {
   chunkId: string;
@@ -28,10 +29,21 @@ export class DenseIndex implements Retriever {
 
   static async build(chunks: Chunk[], embedder: Embedder): Promise<DenseIndex> {
     const vectors = await embedder.embedBatch(chunks.map((c) => c.text));
-    const entries = chunks.map((c, i) => ({
-      chunkId: c.id,
-      docId: c.docId,
-      vector: vectors[i],
+    return DenseIndex.fromVectors(embedder, {
+      modelName: embedder.modelName,
+      dim: embedder.dim,
+      chunkIds: chunks.map((c) => c.id),
+      docIds: chunks.map((c) => c.docId),
+      vectors: vectors.map((v) => Array.from(v)),
+    });
+  }
+
+  /** Build an index from precomputed vectors (e.g. a cache hit). */
+  static fromVectors(embedder: Embedder, stored: StoredDenseVectors): DenseIndex {
+    const entries: DenseEntry[] = stored.chunkIds.map((chunkId, i) => ({
+      chunkId,
+      docId: stored.docIds[i],
+      vector: Float32Array.from(stored.vectors[i]),
     }));
     return new DenseIndex(embedder, entries);
   }

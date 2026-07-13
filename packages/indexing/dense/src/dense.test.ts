@@ -45,3 +45,28 @@ test("DenseIndex returns nothing for a non-overlapping query", async () => {
   const results = await index.retrieve({ queryText: "zzzzz", topK: 3 });
   assert.equal(results.length, 0);
 });
+
+import { DenseIndex as _DenseIndexForVectors } from "./dense-index.js";
+
+test("fromVectors yields the same ranking as build", async () => {
+  const corpus = [
+    chunk("c1", "neural networks and deep learning architectures"),
+    chunk("c2", "baking sourdough bread at home"),
+    chunk("c3", "gardening tips for tomato plants"),
+  ];
+  const e = new HashingEmbedder(512);
+  const built = await DenseIndex.build(corpus, e);
+
+  const raw = await e.embedBatch(corpus.map((c) => c.text));
+  const stored = {
+    modelName: e.modelName,
+    dim: e.dim,
+    chunkIds: corpus.map((c) => c.id),
+    docIds: corpus.map((c) => c.docId),
+    vectors: raw.map((v) => Array.from(v)),
+  };
+  const fromVec = _DenseIndexForVectors.fromVectors(e, stored);
+
+  const req = { queryText: "deep learning neural networks", topK: 3 };
+  assert.deepEqual(await fromVec.retrieve(req), await built.retrieve(req));
+});

@@ -33,8 +33,9 @@ export function denseCacheKey(corpusId: string, corpusVersion: number, modelName
 
 /**
  * Build a DenseIndex, reusing cached vectors when a valid record exists for the
- * key. A record is valid only if its dim matches the embedder and it holds one
- * row per chunk; otherwise vectors are recomputed and the cache is overwritten.
+ * key. A record is valid only if its model and dim match the embedder and it
+ * holds one row per chunk; otherwise vectors are recomputed and the cache is
+ * overwritten.
  */
 export async function buildDenseIndexCached(
   chunks: Chunk[],
@@ -43,7 +44,12 @@ export async function buildDenseIndexCached(
   key: string,
 ): Promise<DenseIndex> {
   const stored = await cache.get(key);
-  if (stored && stored.dim === embedder.dim && stored.chunkIds.length === chunks.length) {
+  if (
+    stored &&
+    stored.modelName === embedder.modelName &&
+    stored.dim === embedder.dim &&
+    stored.chunkIds.length === chunks.length
+  ) {
     return DenseIndex.fromVectors(embedder, stored);
   }
   const raw = await embedder.embedBatch(chunks.map((c) => c.text));

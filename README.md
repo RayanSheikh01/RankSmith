@@ -37,8 +37,6 @@ docs/                   # architecture / metrics
 tests/                  # unit / integration / e2e
 ```
 
-See [PLAN.md](PLAN.md) for the full architecture, data models, and build order.
-
 ## Getting started
 
 Requires Node.js (with npm workspaces support).

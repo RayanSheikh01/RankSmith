@@ -5,4 +5,6 @@ dist/
 coverage/
 data/
 PLAN.md
+# Implementation plans stay local, never committed (any plans/ dir, any depth)
+**/plans/
 docs/superpowers/plans/

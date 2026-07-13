@@ -3,6 +3,7 @@ import { newCorpusId, newId } from "@ranksmith/observability";
 import { ingestDocument, type ChunkingPreset } from "@ranksmith/ingestion";
 import type { Qrels } from "@ranksmith/evaluation";
 import { InMemoryRepository, FileRepository, type Repository } from "@ranksmith/storage";
+import type { StoredDenseVectors, DenseVectorCache } from "@ranksmith/indexing-dense";
 import { join } from "node:path";
 import { runExperiment, type EvalQuery, type RunOutput } from "./orchestrator.js";
 
@@ -36,6 +37,15 @@ export interface CreateRunRequest {
 export interface StoreRepositories {
   corpora: Repository<CorpusRecord>;
   runs: Repository<RunOutput>;
+  vectors: Repository<StoredDenseVectors>;
+}
+
+/** Adapt a storage Repository to the DenseVectorCache shape (put -> save). */
+function repositoryVectorCache(repo: Repository<StoredDenseVectors>): DenseVectorCache {
+  return {
+    get: (key) => repo.get(key),
+    put: (key, value) => repo.save(key, value),
+  };
 }
 
 /**
@@ -46,10 +56,12 @@ export interface StoreRepositories {
 export class RankSmithStore {
   private readonly corpora: Repository<CorpusRecord>;
   private readonly runs: Repository<RunOutput>;
+  private readonly vectors: Repository<StoredDenseVectors>;
 
   constructor(repositories?: StoreRepositories) {
     this.corpora = repositories?.corpora ?? new InMemoryRepository<CorpusRecord>();
     this.runs = repositories?.runs ?? new InMemoryRepository<RunOutput>();
+    this.vectors = repositories?.vectors ?? new InMemoryRepository<StoredDenseVectors>();
   }
 
   async createCorpus(
@@ -106,6 +118,9 @@ export class RankSmithStore {
       seed: request.seed,
       commitHash: request.commitHash,
       evalK: request.evalK,
+      denseCache: repositoryVectorCache(this.vectors),
+      corpusId: request.corpusId,
+      corpusVersion: record.corpus.version,
     });
     await this.runs.save(output.run.id, output);
     return output;
@@ -125,5 +140,6 @@ export function fileRepositories(baseDir = "data"): StoreRepositories {
   return {
     corpora: new FileRepository<CorpusRecord>(join(baseDir, "corpora")),
     runs: new FileRepository<RunOutput>(join(baseDir, "runs")),
+    vectors: new FileRepository<StoredDenseVectors>(join(baseDir, "indexes")),
   };
 }

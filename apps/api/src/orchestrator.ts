@@ -13,7 +13,14 @@ import {
   type Retriever,
 } from "@ranksmith/retrieval";
 import { Bm25Index } from "@ranksmith/indexing-sparse";
-import { DenseIndex, resolveEmbedder, type Embedder } from "@ranksmith/indexing-dense";
+import {
+  DenseIndex,
+  resolveEmbedder,
+  buildDenseIndexCached,
+  denseCacheKey,
+  type Embedder,
+  type DenseVectorCache,
+} from "@ranksmith/indexing-dense";
 import {
   LexicalCrossEncoder,
   rerankCandidates,
@@ -41,6 +48,9 @@ export interface RunInput {
   querySetId: string;
   embedder?: Embedder;
   crossEncoder?: CrossEncoder;
+  denseCache?: DenseVectorCache;
+  corpusId?: string;
+  corpusVersion?: number;
   seed?: number;
   commitHash?: string;
   /** Cutoff for metrics; defaults to the config topK. */
@@ -71,19 +81,31 @@ function toRankedCandidate(
   };
 }
 
+async function buildDenseRetriever(
+  chunks: Chunk[],
+  embedder: Embedder,
+  cache: DenseVectorCache | undefined,
+  key: string | undefined,
+): Promise<DenseIndex> {
+  if (cache && key) return buildDenseIndexCached(chunks, embedder, cache, key);
+  return DenseIndex.build(chunks, embedder);
+}
+
 async function buildRetriever(
   config: RunConfigRecord,
   chunks: Chunk[],
   embedder: Embedder,
+  cache: DenseVectorCache | undefined,
+  denseKey: string | undefined,
 ): Promise<Retriever> {
   switch (config.retrievalMode) {
     case "bm25":
       return new Bm25Index(chunks, config.bm25);
     case "dense":
-      return DenseIndex.build(chunks, embedder);
+      return buildDenseRetriever(chunks, embedder, cache, denseKey);
     case "hybrid": {
       const sparse = new Bm25Index(chunks, config.bm25);
-      const dense = await DenseIndex.build(chunks, embedder);
+      const dense = await buildDenseRetriever(chunks, embedder, cache, denseKey);
       return new HybridRetriever(sparse, dense, config.hybrid);
     }
   }
@@ -107,10 +129,20 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
   const evalK = input.evalK ?? input.config.topK;
 
   const embedder = input.embedder ?? resolveEmbedder(input.config.dense.modelName);
+  const denseKey =
+    input.denseCache && input.corpusId
+      ? denseCacheKey(input.corpusId, input.corpusVersion ?? 1, input.config.dense.modelName)
+      : undefined;
   const crossEncoder = input.crossEncoder ?? new LexicalCrossEncoder();
   const textOf = new Map(input.chunks.map((c) => [c.id, c.text]));
 
-  const retriever = await buildRetriever(input.config, input.chunks, embedder);
+  const retriever = await buildRetriever(
+    input.config,
+    input.chunks,
+    embedder,
+    input.denseCache,
+    denseKey,
+  );
   log?.info("retriever built", { mode: input.config.retrievalMode, chunks: input.chunks.length });
 
   const perQuery: QueryRunResult[] = [];

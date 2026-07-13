@@ -4,6 +4,8 @@ import type { Chunk, RunConfigRecord } from "@ranksmith/core";
 import { ingestDocument } from "@ranksmith/ingestion";
 import type { Qrels } from "@ranksmith/evaluation";
 import { runExperiment, type EvalQuery } from "./orchestrator.js";
+import type { Embedder, StoredDenseVectors, DenseVectorCache } from "@ranksmith/indexing-dense";
+import { HashingEmbedder } from "@ranksmith/indexing-dense";
 
 const docs = [
   { title: "ML", text: "neural networks and gradient descent train deep learning models" },
@@ -102,4 +104,50 @@ test("runExperiment rejects an unknown dense model", async () => {
     runExperiment({ config: cfg, chunks: buildCorpus(), queries: [], querySetId: "qs_1" }),
     /Unknown embedding model "bogus-model"/,
   );
+});
+
+class CountingEmbedder implements Embedder {
+  readonly modelName = "hashing-bow-v1";
+  readonly dim = 64;
+  batchCalls = 0;
+  private readonly inner = new HashingEmbedder(64);
+  embed(text: string) {
+    return this.inner.embed(text);
+  }
+  embedBatch(texts: string[]) {
+    this.batchCalls += 1;
+    return this.inner.embedBatch(texts);
+  }
+}
+
+class MemoryVectorCache implements DenseVectorCache {
+  readonly store = new Map<string, StoredDenseVectors>();
+  async get(key: string) {
+    return this.store.get(key);
+  }
+  async put(key: string, value: StoredDenseVectors) {
+    this.store.set(key, value);
+  }
+}
+
+test("runExperiment caches dense vectors across runs on the same corpus", async () => {
+  const chunks = buildCorpus();
+  const embedder = new CountingEmbedder();
+  const cache = new MemoryVectorCache();
+  const input = {
+    config: baseConfig("dense"),
+    chunks,
+    queries: [] as EvalQuery[],
+    querySetId: "qs_1",
+    embedder,
+    denseCache: cache,
+    corpusId: "corpus_1",
+    corpusVersion: 1,
+  };
+
+  await runExperiment(input);
+  await runExperiment(input);
+
+  assert.equal(embedder.batchCalls, 1, "second run should reuse cached vectors");
+  assert.equal(cache.store.size, 1);
 });

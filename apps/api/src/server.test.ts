@@ -33,6 +33,17 @@ test("handleRequest: corpus lifecycle then run", async () => {
   const list = await handleRequest(store, "GET", "/corpora", undefined);
   assert.equal((list.payload as { corpora: unknown[] }).corpora.length, 1);
 
+  const sendQuerySet = await handleRequest(store, "POST", "/query-sets", {
+    name: "test-set",
+    corpusId,
+    queries: [{ id: "q1", text: "inverted index keyword search", qrels: { [corpusId]: 1 } }],
+  });
+  assert.equal(sendQuerySet.status, 201);
+  const querySetId = (sendQuerySet.payload as { id: string }).id;
+
+  const getQuerySet = await handleRequest(store, "GET", `/query-sets/${querySetId}`, undefined);
+  assert.equal(getQuerySet.status, 200);
+  assert.equal((getQuerySet.payload as { id: string }).id, querySetId);
   const chunksRes = await handleRequest(store, "GET", `/corpora/${corpusId}/chunks`, undefined);
   assert.ok((chunksRes.payload as { chunks: unknown[] }).chunks.length > 0);
 
@@ -52,12 +63,38 @@ test("handleRequest: corpus lifecycle then run", async () => {
   assert.equal((results.payload as { results: unknown[] }).results.length, 1);
 });
 
+test("handleRequest: run references a persisted query set by id", async () => {
+  const store = new RankSmithStore();
+
+  const created = await handleRequest(store, "POST", "/corpora", { name: "c", documents });
+  const corpusId = (created.payload as { corpus: { id: string } }).corpus.id;
+
+  const chunksRes = await handleRequest(store, "GET", `/corpora/${corpusId}/chunks`, undefined);
+  const chunks = (chunksRes.payload as { chunks: { id: string; text: string }[] }).chunks;
+  const dbChunk = chunks.find((c) => c.text.includes("inverted index"))!;
+
+  const setRes = await handleRequest(store, "POST", "/query-sets", {
+    name: "reusable",
+    corpusId,
+    queries: [{ id: "q1", text: "inverted index keyword search", qrels: { [dbChunk.id]: 1 } }],
+  });
+  const querySetId = (setRes.payload as { id: string }).id;
+
+  const run = await handleRequest(store, "POST", "/runs", { config: config(), corpusId, querySetId });
+  assert.equal(run.status, 201);
+  assert.equal((run.payload as { run: { querySetId: string } }).run.querySetId, querySetId);
+});
+
 test("handleRequest: validation and not-found errors", async () => {
   const store = new RankSmithStore();
   await assert.rejects(handleRequest(store, "POST", "/corpora", { name: "x" }), /non-empty 'documents'/);
   await assert.rejects(handleRequest(store, "GET", "/runs/nope", undefined), /Unknown run/);
   await assert.rejects(
-    handleRequest(store, "POST", "/runs", { config: config(), corpusId: "missing", queries: [] }),
+    handleRequest(store, "POST", "/runs", {
+      config: config(),
+      corpusId: "missing",
+      queries: [{ id: "q1", text: "x", qrels: {} }],
+    }),
     /Unknown corpusId/,
   );
 });

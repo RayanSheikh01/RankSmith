@@ -122,8 +122,9 @@ export async function handleRequest(
   if (segments[0] === "runs") {
     if (method === "POST" && segments.length === 1) {
       const b = (body ?? {}) as Partial<CreateRunRequest>;
-      if (!b.config || !b.corpusId || !Array.isArray(b.queries) || ) {
-        throw new HttpError(400, "Body requires 'config', 'corpusId', 'querySetId', and a 'queries' array.");
+      const hasQueries = Array.isArray(b.queries) && b.queries.length > 0;
+      if (!b.config || !b.corpusId || (!b.querySetId && !hasQueries)) {
+        throw new HttpError(400, "Body requires 'config', 'corpusId', and either 'querySetId' or a non-empty 'queries' array.");
       }
       try {
         const output = await store.createRun(b as CreateRunRequest);

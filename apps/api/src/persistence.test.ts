@@ -36,6 +36,11 @@ test("corpora and runs persist across store instances via the filesystem", async
       commitHash: "abc123",
     });
 
+    const querySet = await writer.createQuerySet("persisted", corpus.corpus.id, [{ id: "q1", text: "inverted index keyword search", qrels: { [dbChunk.id]: 1 } }]);
+    assert.equal(querySet.name, "persisted");
+    assert.equal(querySet.corpusId, corpus.corpus.id);
+    assert.equal(querySet.queries.length, 1);
+
     // A brand-new store over the same directory must see both artifacts.
     const reader = new RankSmithStore(fileRepositories(dir));
     const reloadedCorpus = await reader.getCorpus(corpus.corpus.id);
@@ -47,6 +52,11 @@ test("corpora and runs persist across store instances via the filesystem", async
     assert.equal(reloadedRun!.run.commitHash, "abc123");
     assert.equal(reloadedRun!.metrics.mrr, output.metrics.mrr);
     assert.equal((await reader.listRuns()).length, 1);
+    const reloadedQuerySet = await reader.getQuerySet(querySet.id);
+    assert.ok(reloadedQuerySet, "query set should persist");
+    assert.equal(reloadedQuerySet!.name, "persisted");
+    assert.equal(reloadedQuerySet!.corpusId, corpus.corpus.id);
+    assert.equal(reloadedQuerySet!.queries.length, 1);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

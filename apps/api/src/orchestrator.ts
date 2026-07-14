@@ -23,6 +23,7 @@ import {
 } from "@ranksmith/indexing-dense";
 import {
   LexicalCrossEncoder,
+  resolveCrossEncoder,
   rerankCandidates,
   type CrossEncoder,
   type RerankedCandidate,
@@ -133,7 +134,11 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
     input.denseCache && input.corpusId
       ? denseCacheKey(input.corpusId, input.corpusVersion ?? 1, input.config.dense.modelName)
       : undefined;
-  const crossEncoder = input.crossEncoder ?? new LexicalCrossEncoder();
+  const crossEncoder =
+    input.crossEncoder ??
+    (input.config.rerankDepth > 0 && input.config.crossEncoderModel
+      ? resolveCrossEncoder(input.config.crossEncoderModel)
+      : new LexicalCrossEncoder());
   const textOf = new Map(input.chunks.map((c) => [c.id, c.text]));
 
   const retriever = await buildRetriever(

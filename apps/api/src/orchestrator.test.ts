@@ -106,6 +106,14 @@ test("runExperiment rejects an unknown dense model", async () => {
   );
 });
 
+test("runExperiment rejects an unknown cross-encoder model", async () => {
+  const cfg: RunConfigRecord = { ...baseConfig("bm25", 2), crossEncoderModel: "bogus-reranker" };
+  await assert.rejects(
+    runExperiment({ config: cfg, chunks: buildCorpus(), queries: [], querySetId: "qs_1" }),
+    /Unknown cross-encoder model "bogus-reranker"/,
+  );
+});
+
 class CountingEmbedder implements Embedder {
   readonly modelName = "hashing-bow-v1";
   readonly dim = 64;

@@ -11,3 +11,4 @@ docs/superpowers/plans/
 # Design docs stay local, never committed
 DESIGN-*.md
 docs/superpowers/specs/
+implementation_plan.md

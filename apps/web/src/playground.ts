@@ -382,7 +382,7 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       hybrid: { fusionType: "rrf", sparseWeight: 0.5, denseWeight: 0.5, rrfK: Number(el("rrfK").value) },
       topK: Number(el("topK").value),
       rerankDepth: rerankDepth,
-      crossEncoderModel: rerankDepth > 0 ? "lexical-overlap-v1" : null
+      crossEncoderModel: rerankDepth > 0 ? "Xenova/ms-marco-MiniLM-L-6-v2" : null
     };
   }
 

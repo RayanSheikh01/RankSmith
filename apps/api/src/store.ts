@@ -18,6 +18,15 @@ export interface CorpusRecord {
   chunks: Chunk[];
 }
 
+export interface QuerySetRecord {
+  id: string;
+  name: string;
+  corpusId: string;
+  queries: RunRequestQuery[];
+  createdAt: string;
+}
+
+
 export interface RunRequestQuery {
   id: string;
   text: string;
@@ -28,7 +37,8 @@ export interface RunRequestQuery {
 export interface CreateRunRequest {
   config: RunConfigRecord;
   corpusId: string;
-  queries: RunRequestQuery[];
+  queries?: RunRequestQuery[];
+  querySetId?: string;
   seed?: number;
   commitHash?: string;
   evalK?: number;
@@ -38,6 +48,8 @@ export interface StoreRepositories {
   corpora: Repository<CorpusRecord>;
   runs: Repository<RunOutput>;
   vectors: Repository<StoredDenseVectors>;
+  querySets?: Repository<QuerySetRecord>;
+
 }
 
 /** Adapt a storage Repository to the DenseVectorCache shape (put -> save). */
@@ -57,11 +69,37 @@ export class RankSmithStore {
   private readonly corpora: Repository<CorpusRecord>;
   private readonly runs: Repository<RunOutput>;
   private readonly vectors: Repository<StoredDenseVectors>;
+  private readonly querySets: Repository<QuerySetRecord>;
 
   constructor(repositories?: StoreRepositories) {
     this.corpora = repositories?.corpora ?? new InMemoryRepository<CorpusRecord>();
     this.runs = repositories?.runs ?? new InMemoryRepository<RunOutput>();
     this.vectors = repositories?.vectors ?? new InMemoryRepository<StoredDenseVectors>();
+    this.querySets = repositories?.querySets ?? new InMemoryRepository<QuerySetRecord>();
+
+  }
+
+  async createQuerySet(name: string, corpusId: string, queries: RunRequestQuery[]): Promise<QuerySetRecord> {
+    if (this.corpora.get(corpusId) === undefined) {
+      throw new Error(`Unknown corpusId: ${corpusId}`);
+    }
+    const record: QuerySetRecord = {
+      id: newId("qs"),
+      name,
+      corpusId,
+      queries,
+      createdAt: new Date().toISOString(),
+    };
+    await this.querySets.save(record.id, record);
+    return record;
+  }
+
+  async getQuerySet(id: string): Promise<QuerySetRecord | undefined> {
+    return this.querySets.get(id);
+  }
+
+  async listQuerySets(): Promise<QuerySetRecord[]> {
+    return (await this.querySets.list()).map((r) => r);
   }
 
   async createCorpus(
@@ -101,11 +139,27 @@ export class RankSmithStore {
   }
 
   async createRun(request: CreateRunRequest): Promise<RunOutput> {
+    let sourceQueries: RunRequestQuery[];
+    let querySetId: string;
+    if (request.querySetId) {
+      const querySet = await this.querySets.get(request.querySetId);
+      if (!querySet) {
+        throw new Error(`Unknown querySetId: ${request.querySetId}`);
+      }
+      sourceQueries = querySet.queries;
+      querySetId = querySet.id;
+    } else {
+      sourceQueries = request.queries ?? [];
+      querySetId = newId("qs");
+    }
+    if (sourceQueries.length === 0) {
+      throw new Error("createRun requires a querySetId or inline queries");
+    }
     const record = await this.corpora.get(request.corpusId);
     if (!record) {
       throw new Error(`Unknown corpusId: ${request.corpusId}`);
     }
-    const queries: EvalQuery[] = request.queries.map((q) => ({
+    const queries: EvalQuery[] = sourceQueries.map((q) => ({
       id: q.id || newId("query"),
       text: q.text,
       qrels: new Map(Object.entries(q.qrels)) as Qrels,
@@ -114,7 +168,7 @@ export class RankSmithStore {
       config: request.config,
       chunks: record.chunks,
       queries,
-      querySetId: newId("qs"),
+      querySetId,
       seed: request.seed,
       commitHash: request.commitHash,
       evalK: request.evalK,
@@ -141,5 +195,8 @@ export function fileRepositories(baseDir = "data"): StoreRepositories {
     corpora: new FileRepository<CorpusRecord>(join(baseDir, "corpora")),
     runs: new FileRepository<RunOutput>(join(baseDir, "runs")),
     vectors: new FileRepository<StoredDenseVectors>(join(baseDir, "indexes")),
+    querySets: new FileRepository<QuerySetRecord>(join(baseDir, "query-sets"))
   };
 }
+
+

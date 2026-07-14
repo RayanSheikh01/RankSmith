@@ -19,3 +19,10 @@ modelTest("scoreBatch returns one score per document", async () => {
   assert.equal(scores.length, 3);
   assert.equal(typeof scores[0], "number");
 });
+
+// Ungated: the empty-input short-circuit must return before any model load,
+// so this runs without network or the ~90MB download.
+test("scoreBatch returns [] for no documents without loading the model", async () => {
+  const ce = new TransformersCrossEncoder();
+  assert.deepEqual(await ce.scoreBatch("any query", []), []);
+});

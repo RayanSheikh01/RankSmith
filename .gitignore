@@ -8,3 +8,6 @@ PLAN.md
 # Implementation plans stay local, never committed (any plans/ dir, any depth)
 **/plans/
 docs/superpowers/plans/
+# Design docs stay local, never committed
+DESIGN-*.md
+docs/superpowers/specs/

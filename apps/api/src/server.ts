@@ -98,12 +98,32 @@ export async function handleRequest(
     }
   }
 
+  // /query-sets
+  if (segments[0] === "query-sets") {
+    if (method === "POST" && segments.length === 1) {
+      const b = (body ?? {}) as { name?: string; corpusId?: string; queries?: CreateRunRequest["queries"] };
+      if (!b.name || !b.corpusId || !Array.isArray(b.queries) || b.queries.length === 0) {
+        throw new HttpError(400, "Body requires 'name', 'corpusId', and a non-empty 'queries' array.");
+      }
+      const record = await store.createQuerySet(b.name, b.corpusId, b.queries);
+      return { status: 201, payload: record };
+    }
+    if (method === "GET" && segments.length === 1) {
+      return { status: 200, payload: { querySets: await store.listQuerySets() } };
+    }
+    if (method === "GET" && segments.length === 2) {
+      const record = await store.getQuerySet(segments[1]);
+      if (!record) throw new HttpError(404, `Unknown query set: ${segments[1]}`);
+      return { status: 200, payload: record };
+    }
+  }
+
   // /runs
   if (segments[0] === "runs") {
     if (method === "POST" && segments.length === 1) {
       const b = (body ?? {}) as Partial<CreateRunRequest>;
-      if (!b.config || !b.corpusId || !Array.isArray(b.queries)) {
-        throw new HttpError(400, "Body requires 'config', 'corpusId', and a 'queries' array.");
+      if (!b.config || !b.corpusId || !Array.isArray(b.queries) || ) {
+        throw new HttpError(400, "Body requires 'config', 'corpusId', 'querySetId', and a 'queries' array.");
       }
       try {
         const output = await store.createRun(b as CreateRunRequest);
@@ -114,7 +134,7 @@ export async function handleRequest(
     }
     if (method === "GET" && segments.length === 1) {
       return { status: 200, payload: { runs: await store.listRuns() } };
-    }
+    } 
     if (method === "GET" && segments.length === 2) {
       const output = await store.getRun(segments[1]);
       if (!output) throw new HttpError(404, `Unknown run: ${segments[1]}`);

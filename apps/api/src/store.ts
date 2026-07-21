@@ -6,6 +6,7 @@ import { InMemoryRepository, FileRepository, type Repository } from "@ranksmith/
 import type { StoredDenseVectors, DenseVectorCache } from "@ranksmith/indexing-dense";
 import { join } from "node:path";
 import { runExperiment, type EvalQuery, type RunOutput } from "./orchestrator.js";
+import { gitCommit } from "./git.js";
 
 export interface DocumentInput {
   path: string;
@@ -40,7 +41,6 @@ export interface CreateRunRequest {
   corpusId: string;
   queries?: RunRequestQuery[];
   querySetId?: string;
-  seed?: number;
   commitHash?: string;
   evalK?: number;
 }
@@ -172,8 +172,7 @@ export class RankSmithStore {
       chunks: record.chunks,
       queries,
       querySetId,
-      seed: request.seed,
-      commitHash: request.commitHash,
+      commitHash: gitCommit(),
       evalK: request.evalK,
       denseCache: repositoryVectorCache(this.vectors),
       corpusId: request.corpusId,

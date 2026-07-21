@@ -35,6 +35,7 @@ import {
   type QueryMetrics,
   type Qrels,
 } from "@ranksmith/evaluation";
+import { gitCommit } from "./git.js";
 
 export interface EvalQuery {
   id: string;
@@ -207,8 +208,7 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
     status: "succeeded",
     startedAt,
     finishedAt: new Date().toISOString(),
-    seed: input.seed ?? 0,
-    commitHash: input.commitHash ?? "",
+    commitHash: gitCommit(),
   };
 
   log?.info("run complete", {

@@ -77,7 +77,6 @@ export interface ExperimentRun {
   status: "pending" | "running" | "succeeded" | "failed";
   startedAt: ISODateTime;
   finishedAt: ISODateTime | null;
-  seed: number;
   commitHash: string;
 }
 

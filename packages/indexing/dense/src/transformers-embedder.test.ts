@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { TransformersEmbedder } from "./transformers-embedder.js";
 import { dot } from "./embedder.js";
 
-// Real-model tests download ~90MB and run slow; opt in with RANKSMITH_MODEL_TESTS=1.
-const modelTest = process.env.RANKSMITH_MODEL_TESTS ? test : test.skip;
+// Real-model tests download ~90MB and run slow, but always run.
+const modelTest = test;
 
 modelTest("TransformersEmbedder returns 384-dim unit-norm vectors", async () => {
   const e = new TransformersEmbedder();

@@ -6,6 +6,7 @@ export interface Corpus {
   name: string;
   version: number;
   createdAt: ISODateTime;
+  checksum: string;
 }
 
 export interface SourceDocument {

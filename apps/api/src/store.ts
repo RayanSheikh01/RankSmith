@@ -16,6 +16,7 @@ export interface DocumentInput {
 export interface CorpusRecord {
   corpus: Corpus;
   chunks: Chunk[];
+  documents: DocumentInput[];
 }
 
 export interface QuerySetRecord {
@@ -113,6 +114,7 @@ export class RankSmithStore {
       version: 1,
       createdAt: new Date().toISOString(),
     };
+    const checksums: string[] = [];
     const chunks: Chunk[] = [];
     for (const doc of documents) {
       const result = ingestDocument({
@@ -124,8 +126,9 @@ export class RankSmithStore {
         preset,
       });
       chunks.push(...result.chunks);
+      checksums.push(result.document.checksum);
     }
-    const record = { corpus, chunks };
+    const record = { corpus, chunks, checksums };
     await this.corpora.save(corpus.id, record);
     return record;
   }

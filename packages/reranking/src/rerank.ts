@@ -30,15 +30,16 @@ export async function rerankCandidates(
     head.map((c) => textOf(c.chunkId) ?? ""),
   );
 
+  if (scores.length !== head.length) {
+    throw new Error(`Cross-encoder returned ${scores.length} scores for ${head.length} candidates`);
+  }
   const rescoredHead = head
     .map((c, i) => ({
       ...c,
       retrievalRank: c.rank,
-      rerankScore: scores[i],
-      score: scores[i],
+      rerankScore: scores[i]
     }))
     .sort((a, b) => b.rerankScore - a.rerankScore);
-
   const passthroughTail: RerankedCandidate[] = tail.map((c) => ({
     ...c,
     retrievalRank: c.rank,

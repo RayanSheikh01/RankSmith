@@ -31,7 +31,16 @@ test("rerankCandidates reorders the head by cross-encoder score", async () => {
   assert.equal(reranked[0].chunkId, "c2");
   assert.equal(reranked[0].rank, 1);
   assert.equal(reranked[0].retrievalRank, 2);
+  assert.equal(reranked[0].score, retrieved[1].score);
   assert.ok(reranked[0].rerankScore !== null);
+  assert.equal(reranked[1].chunkId, "c1");
+  assert.equal(reranked[1].rank, 2);
+  assert.equal(reranked[1].retrievalRank, 1);
+  assert.ok(reranked[1].rerankScore !== null);
+  assert.equal(reranked[2].chunkId, "c3");
+  assert.equal(reranked[2].rank, 3);
+  assert.equal(reranked[2].retrievalRank, 3);
+  assert.ok(reranked[2].rerankScore !== null);
 });
 
 test("candidates below depth are left untouched with null rerankScore", async () => {

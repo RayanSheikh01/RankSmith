@@ -84,6 +84,15 @@ test("reranking populates rerankScore and latency", async () => {
   assert.notEqual(perQuery[0].candidates[0].rerankScore, null);
   // Every candidate carries the pre-rerank rank so the UI can show movement.
   assert.ok(perQuery[0].candidates.every((c) => typeof c.retrievalRank === "number"));
+
+  for (const c of perQuery[0].candidates) {
+    if (c.chunkId === spaceChunk.id) {
+      assert.ok(c.rerankScore! > 0, "relevant chunk should have positive rerank score");
+    } else {
+      assert.ok(c.rerankScore! <= 0, "irrelevant chunks should have non-positive rerank score");
+    }
+    assert.notEqual(c.sparseScore, c.rerankScore, "rerankScore should differ from sparse score");
+  }
 });
 
 test("runExperiment rejects an invalid config", async () => {

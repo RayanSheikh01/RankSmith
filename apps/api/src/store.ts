@@ -80,7 +80,7 @@ export class RankSmithStore {
   }
 
   async createQuerySet(name: string, corpusId: string, queries: RunRequestQuery[]): Promise<QuerySetRecord> {
-    if (this.corpora.get(corpusId) === undefined) {
+    if ((await this.corpora.get(corpusId)) === undefined) {
       throw new Error(`Unknown corpusId: ${corpusId}`);
     }
     const record: QuerySetRecord = {

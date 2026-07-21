@@ -159,3 +159,38 @@ test("runExperiment caches dense vectors across runs on the same corpus", async 
   assert.equal(embedder.batchCalls, 1, "second run should reuse cached vectors");
   assert.equal(cache.store.size, 1);
 });
+
+test("per-query metrics are recorded per query, not just aggregated", async () => {
+  const chunks = buildCorpus();
+  const dbChunk = chunks.find((c) => c.text.includes("inverted index"))!;
+  const spaceChunk = chunks.find((c) => c.text.includes("telescope"))!;
+
+  // One query the retriever can satisfy, one whose relevant chunk shares no
+  // terms with it — so the two queries must not score the same.
+  const queries: EvalQuery[] = [
+    { id: "hit", text: "inverted index keyword search postings", qrels: new Map([[dbChunk.id, 1]]) },
+    { id: "miss", text: "inverted index keyword search postings", qrels: new Map([[spaceChunk.id, 1]]) },
+  ];
+
+  const { perQuery, metrics } = await runExperiment({
+    config: baseConfig("bm25"),
+    chunks,
+    queries,
+    querySetId: "qs_1",
+    evalK: 1,
+  });
+
+  assert.equal(perQuery.length, 2);
+  assert.equal(perQuery[0].queryId, "hit");
+  assert.equal(perQuery[1].queryId, "miss");
+
+  // The whole point: each result carries its own score, so a caller can tell
+  // which query regressed instead of only seeing the mean.
+  assert.equal(perQuery[0].metrics.ndcg, 1, "relevant chunk ranked first");
+  assert.equal(perQuery[1].metrics.ndcg, 0, "relevant chunk not retrieved at k=1");
+  assert.equal(perQuery[0].metrics.reciprocalRank, 1);
+  assert.equal(perQuery[1].metrics.reciprocalRank, 0);
+
+  // Aggregate stays consistent with the per-query values it came from.
+  assert.equal(metrics.meanNdcg, 0.5);
+});

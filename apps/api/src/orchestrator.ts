@@ -180,18 +180,23 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
     const totalLatencyMs = totalTimer.elapsedMs();
     latencies.push(totalLatencyMs);
 
+    const queryMetrics = computeQueryMetrics(
+      candidates.map((c) => c.chunkId),
+      query.qrels,
+      evalK,
+    );
+
     perQuery.push({
       runId,
       queryId: query.id,
       candidates: candidates.map((c) => toRankedCandidate(c, input.config.retrievalMode)),
+      metrics: queryMetrics,
       retrievalLatencyMs,
       rerankLatencyMs,
       totalLatencyMs,
     });
 
-    perQueryMetrics.push(
-      computeQueryMetrics(candidates.map((c) => c.chunkId), query.qrels, evalK),
-    );
+    perQueryMetrics.push(queryMetrics);
   }
 
   const metrics = aggregateMetrics(perQueryMetrics, latencies, evalK);

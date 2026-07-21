@@ -92,10 +92,24 @@ export interface RankedCandidate {
   rerankScore: number | null;
 }
 
+/**
+ * Per-query metric scores at the run's eval cutoff. Structurally identical to
+ * `QueryMetrics` in @ranksmith/evaluation, declared here so core stays
+ * dependency-free (core is the base package; evaluation does not import it).
+ */
+export interface QueryMetrics {
+  recall: number;
+  precision: number;
+  reciprocalRank: number;
+  ndcg: number;
+}
+
 export interface QueryRunResult {
   runId: Id;
   queryId: Id;
   candidates: RankedCandidate[];
+  /** Scores for this query alone, enabling per-query run-vs-run comparison. */
+  metrics: QueryMetrics;
   retrievalLatencyMs: number;
   rerankLatencyMs: number;
   totalLatencyMs: number;

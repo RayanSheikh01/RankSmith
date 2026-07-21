@@ -97,6 +97,16 @@ test("handleRequest: validation and not-found errors", async () => {
     }),
     /Unknown corpusId/,
   );
+  // Guards the awaited corpus lookup in createQuerySet: an un-awaited Promise
+  // is never `undefined`, so dropping the await silently accepts any corpusId.
+  await assert.rejects(
+    handleRequest(store, "POST", "/query-sets", {
+      name: "orphan",
+      corpusId: "missing",
+      queries: [{ id: "q1", text: "x", qrels: {} }],
+    }),
+    /Unknown corpusId/,
+  );
 });
 
 test("createServer serves over HTTP", async () => {

@@ -156,6 +156,24 @@ export const playgroundHtml = `<!doctype html>
   .chunkrow .ct { font-size: 12px; color: var(--text); }
   .chunkrow .cid { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 
+  .queryset { margin-top: 8px; }
+  .qrow { display: flex; align-items: baseline; gap: 9px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; background: var(--ink); }
+  .qrow .qt { flex: 1; font-size: 12px; }
+  .qrow .qn { font-family: var(--mono); font-size: 10px; color: var(--signal); }
+  .qrow .qx { font-family: var(--mono); font-size: 14px; color: var(--muted); cursor: pointer; background: none; border: none; padding: 0 2px; }
+  .qrow .qx:hover { color: var(--down); }
+
+  /* Per-query comparison table */
+  .qtable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .qtable th, .qtable td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); }
+  .qtable th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 400; }
+  .qtable td.num { font-family: var(--mono); text-align: right; color: var(--muted); }
+  .qtable td.num.best { color: var(--up); font-weight: 700; }
+  .qtable td.num.zero { color: var(--down); }
+  .qtable tr:last-child td { border-bottom: none; }
+  .qtable .qtext { color: var(--text); }
+  .tablewrap { border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+
   /* Results side */
   .placeholder { color: var(--muted); font-family: var(--mono); font-size: 13px; border: 1px dashed var(--line); border-radius: 8px; padding: 40px; text-align: center; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -227,6 +245,10 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       <button id="selectAllBtn" class="mini" disabled>Select all relevant</button>
       <div id="chunks" class="chunks"><div class="chunkrow"><span class="cid">build a corpus to load chunks</span></div></div>
 
+      <button id="addQueryBtn" class="mini" style="margin-top:10px" disabled>+ Add query to set</button>
+      <p class="hint">Add several graded queries to score a whole set at once — single-query metrics are mostly noise.</p>
+      <div id="querySet" class="queryset"></div>
+
       <div class="eyebrow"><span class="idx">C</span> Run config</div>
       <label class="field"><span>Retrieval modes to compare</span></label>
       <div class="modes" id="modes">
@@ -258,6 +280,12 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       <div class="eyebrow">Metrics <span class="pill" id="evalK"></span></div>
       <div id="metrics"><div class="placeholder">Build a corpus, mark relevant chunks, then run a comparison to see side-by-side metrics.</div></div>
 
+      <div id="perQueryWrap" style="display:none">
+        <div class="eyebrow">Per-query nDCG — where each mode wins and loses</div>
+        <div class="tablewrap"><table class="qtable" id="perQuery"></table></div>
+        <p class="hint">Best mode per query is teal; zero means the mode found nothing relevant in the top-k. Aggregate metrics hide these swings.</p>
+      </div>
+
       <div id="ladderWrap" style="display:none">
         <div class="eyebrow">Rank ladder — retrieval &rarr; rerank movement</div>
         <div class="tabs" id="ladderTabs"></div>
@@ -271,7 +299,18 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
 <script>
 (function () {
   "use strict";
-  var state = { corpusId: null, chunks: [], runs: {}, activeMode: null, evalK: 6 };
+  var state = {
+    corpusId: null,
+    chunks: [],
+    runs: {},
+    activeMode: null,
+    evalK: 6,
+    /** Graded queries staged for this run; empty means "just use the live query box". */
+    pending: [],
+    /** Queries actually scored by the last run, in result order. */
+    scored: [],
+    activeQuery: 0
+  };
 
   function el(id) { return document.getElementById(id); }
   function esc(s) {
@@ -332,7 +371,11 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       renderChunks();
       el("selectAllBtn").disabled = false;
       el("selectAllBtn").textContent = "Select all relevant";
+      el("addQueryBtn").disabled = false;
       el("runBtn").disabled = false;
+      // Chunk ids are corpus-scoped, so a rebuild invalidates any staged qrels.
+      state.pending = [];
+      renderQuerySet();
       setStatus(created.corpus.id + " · " + state.chunks.length + " chunks", true);
     } catch (e) {
       toast(e.message);
@@ -372,6 +415,71 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
     return qrels;
   }
 
+  function clearRelevant() {
+    var checks = document.querySelectorAll(".relchk");
+    for (var i = 0; i < checks.length; i++) { checks[i].checked = false; }
+    el("selectAllBtn").textContent = "Select all relevant";
+  }
+
+  function addQueryToSet() {
+    var text = el("query").value.trim();
+    if (!text) { toast("Enter a query first."); return; }
+    var qrels = relevantQrels();
+    if (Object.keys(qrels).length === 0) { toast("Check at least one relevant chunk."); return; }
+    state.pending.push({ id: "q" + (state.pending.length + 1), text: text, qrels: qrels });
+    el("query").value = "";
+    clearRelevant();
+    renderQuerySet();
+  }
+
+  function renderQuerySet() {
+    var box = el("querySet");
+    box.innerHTML = "";
+    for (var i = 0; i < state.pending.length; i++) {
+      var q = state.pending[i];
+      var n = Object.keys(q.qrels).length;
+      var row = document.createElement("div");
+      row.className = "qrow";
+      row.innerHTML =
+        '<span class="qn">' + esc(q.id) + '</span>' +
+        '<span class="qt">' + esc(q.text) + '</span>' +
+        '<span class="qn">' + n + ' rel</span>' +
+        '<button class="qx" type="button" aria-label="Remove query">×</button>';
+      (function (idx) {
+        row.querySelector(".qx").addEventListener("click", function () {
+          state.pending.splice(idx, 1);
+          renderQuerySet();
+        });
+      })(i);
+      box.appendChild(row);
+    }
+    var n = state.pending.length;
+    el("runBtn").textContent = n > 0
+      ? "Run comparison · " + n + (n === 1 ? " query" : " queries")
+      : "Run comparison";
+  }
+
+  /**
+   * Queries for this run: the staged set if the user built one, otherwise the
+   * single live query box. Persists a real query set server-side so the run is
+   * reproducible and the set can be reused.
+   */
+  async function resolveRunQueries() {
+    if (state.pending.length === 0) {
+      var text = el("query").value.trim();
+      if (!text) throw new Error("Enter a query, or add queries to a set.");
+      var qrels = relevantQrels();
+      if (Object.keys(qrels).length === 0) throw new Error("Check at least one relevant chunk.");
+      return { queries: [{ id: "q1", text: text, qrels: qrels }], querySetId: null };
+    }
+    var created = await api("POST", "/query-sets", {
+      name: el("corpusName").value + " · " + state.pending.length + " queries",
+      corpusId: state.corpusId,
+      queries: state.pending
+    });
+    return { queries: state.pending.slice(), querySetId: created.id };
+  }
+
   function buildConfig(mode) {
     var rerankDepth = Number(el("rerankDepth").value);
     return {
@@ -390,37 +498,100 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
     if (!state.corpusId) { toast("Build a corpus first."); return; }
     var modes = selectedModes();
     if (modes.length === 0) { toast("Select at least one mode."); return; }
-    var qrels = relevantQrels();
-    if (Object.keys(qrels).length === 0) { toast("Check at least one relevant chunk."); return; }
-    var query = el("query").value.trim();
-    if (!query) { toast("Enter a query."); return; }
 
     el("runBtn").disabled = true;
+    var priorLabel = el("runBtn").textContent;
     el("runBtn").textContent = "Running…";
     state.runs = {};
     state.evalK = Number(el("topK").value);
     try {
+      var resolved = await resolveRunQueries();
+      state.scored = resolved.queries;
+      state.activeQuery = 0;
       for (var i = 0; i < modes.length; i++) {
         var mode = modes[i];
-        var run = await api("POST", "/runs", {
+        var request = {
           config: buildConfig(mode),
           corpusId: state.corpusId,
-          queries: [{ id: "q1", text: query, qrels: qrels }],
           evalK: state.evalK
-        });
+        };
+        // Prefer the persisted set so every mode scores the identical queries.
+        if (resolved.querySetId) request.querySetId = resolved.querySetId;
+        else request.queries = resolved.queries;
+        var run = await api("POST", "/runs", request);
         var results = await api("GET", "/runs/" + run.run.id + "/results");
-        state.runs[mode] = { metrics: run.metrics, candidates: results.results[0] ? results.results[0].candidates : [], qrels: qrels };
+        state.runs[mode] = { metrics: run.metrics, perQuery: results.results || [] };
       }
       state.activeMode = modes[0];
       renderMetrics(modes);
+      renderPerQuery(modes);
       renderLadderTabs(modes);
       renderLadder(state.activeMode);
     } catch (e) {
       toast(e.message);
     } finally {
       el("runBtn").disabled = false;
-      el("runBtn").textContent = "Run comparison";
+      el("runBtn").textContent = priorLabel;
     }
+  }
+
+  function qrelsFor(idx) {
+    return state.scored[idx] ? state.scored[idx].qrels : {};
+  }
+
+  /** nDCG for one mode on one query, or null when that query wasn't scored. */
+  function ndcgFor(mode, idx) {
+    var pq = state.runs[mode].perQuery[idx];
+    return pq && pq.metrics ? pq.metrics.ndcg : null;
+  }
+
+  function renderPerQuery(modes) {
+    if (state.scored.length === 0) { el("perQueryWrap").style.display = "none"; return; }
+    var head = '<tr><th>Query</th>';
+    for (var m = 0; m < modes.length; m++) head += '<th style="text-align:right">' + esc(modes[m]) + '</th>';
+    head += '</tr>';
+
+    var body = "";
+    for (var i = 0; i < state.scored.length; i++) {
+      // Best score this row, so the winning mode can be highlighted.
+      var best = -1;
+      for (var b = 0; b < modes.length; b++) {
+        var v = ndcgFor(modes[b], i);
+        if (v !== null && v > best) best = v;
+      }
+      var cells = "";
+      for (var c = 0; c < modes.length; c++) {
+        var val = ndcgFor(modes[c], i);
+        var cls = "num";
+        if (val === null) { cells += '<td class="num">—</td>'; continue; }
+        if (val === 0) cls += " zero";
+        else if (val === best && modes.length > 1) cls += " best";
+        cells += '<td class="' + cls + '">' + val.toFixed(3) + '</td>';
+      }
+      var qtext = state.scored[i].text;
+      var short = qtext.length > 54 ? qtext.slice(0, 54) + "…" : qtext;
+      var sel = i === state.activeQuery ? ' style="background:rgba(232,184,75,0.06)"' : "";
+      body += '<tr class="qpick" data-idx="' + i + '"' + sel + ' tabindex="0">' +
+        '<td class="qtext">' + esc(short) + '</td>' + cells + '</tr>';
+    }
+    el("perQuery").innerHTML = head + body;
+
+    // Clicking a row drives which query the rank ladder below shows.
+    var rows = document.querySelectorAll(".qpick");
+    for (var r = 0; r < rows.length; r++) {
+      (function (node) {
+        function pick() {
+          state.activeQuery = Number(node.getAttribute("data-idx"));
+          renderPerQuery(modes);
+          renderLadder(state.activeMode);
+        }
+        node.addEventListener("click", pick);
+        node.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); }
+        });
+      })(rows[r]);
+    }
+    el("perQueryWrap").style.display = "block";
   }
 
   function meter(label, value) {
@@ -472,7 +643,9 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
 
   function renderLadder(mode) {
     var run = state.runs[mode];
-    var cands = run.candidates;
+    var pq = run.perQuery[state.activeQuery];
+    var cands = pq ? pq.candidates : [];
+    var qrels = qrelsFor(state.activeQuery);
     var maxScore = 0;
     for (var i = 0; i < cands.length; i++) {
       var s = scoreOf(cands[i]);
@@ -484,7 +657,7 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
       var moved = c.retrievalRank - c.rank;
       var deltaClass = moved > 0 ? "up" : moved < 0 ? "down" : "";
       var deltaText = moved > 0 ? "▲ " + moved : moved < 0 ? "▼ " + Math.abs(moved) : "—";
-      var isRel = run.qrels[c.chunkId] ? " relevant" : "";
+      var isRel = qrels[c.chunkId] ? " relevant" : "";
       var sc = scoreOf(c);
       var pct = maxScore > 0 ? (sc / maxScore) * 100 : 0;
       var full = textForChunk(c.chunkId);
@@ -532,6 +705,7 @@ Cooking :: simmer the tomato sauce with garlic basil and olive oil</textarea>
 
   el("buildBtn").addEventListener("click", buildCorpus);
   el("selectAllBtn").addEventListener("click", toggleAllRelevant);
+  el("addQueryBtn").addEventListener("click", addQueryToSet);
   el("runBtn").addEventListener("click", runComparison);
 })();
 </script>

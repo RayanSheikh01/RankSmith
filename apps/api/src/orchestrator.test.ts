@@ -58,6 +58,8 @@ test("runExperiment produces per-query results and metrics for each mode", async
       chunks,
       queries,
       querySetId: "qs_1",
+      corpusId: "corpus_1",
+      corpusChecksum: "checksum_1",
     });
     assert.equal(run.status, "succeeded");
     assert.match(run.id, /^run_/);
@@ -79,6 +81,8 @@ test("reranking populates rerankScore and latency", async () => {
     chunks,
     queries,
     querySetId: "qs_1",
+    corpusId: "corpus_1",
+    corpusChecksum: "checksum_1",
   });
   assert.ok(perQuery[0].rerankLatencyMs >= 0);
   assert.notEqual(perQuery[0].candidates[0].rerankScore, null);
@@ -102,6 +106,8 @@ test("runExperiment rejects an invalid config", async () => {
       chunks: buildCorpus(),
       queries: [],
       querySetId: "qs_1",
+      corpusId: "corpus_1",
+      corpusChecksum: "checksum_1",
     }),
     /Invalid run config/,
   );
@@ -110,7 +116,14 @@ test("runExperiment rejects an invalid config", async () => {
 test("runExperiment rejects an unknown dense model", async () => {
   const cfg: RunConfigRecord = { ...baseConfig("dense"), dense: { modelName: "bogus-model" } };
   await assert.rejects(
-    runExperiment({ config: cfg, chunks: buildCorpus(), queries: [], querySetId: "qs_1" }),
+    runExperiment({
+      config: cfg,
+      chunks: buildCorpus(),
+      queries: [],
+      querySetId: "qs_1",
+      corpusId: "corpus_1",
+      corpusChecksum: "checksum_1",
+    }),
     /Unknown embedding model "bogus-model"/,
   );
 });
@@ -118,7 +131,14 @@ test("runExperiment rejects an unknown dense model", async () => {
 test("runExperiment rejects an unknown cross-encoder model", async () => {
   const cfg: RunConfigRecord = { ...baseConfig("bm25", 2), crossEncoderModel: "bogus-reranker" };
   await assert.rejects(
-    runExperiment({ config: cfg, chunks: buildCorpus(), queries: [], querySetId: "qs_1" }),
+    runExperiment({
+      config: cfg,
+      chunks: buildCorpus(),
+      queries: [],
+      querySetId: "qs_1",
+      corpusId: "corpus_1",
+      corpusChecksum: "checksum_1",
+    }),
     /Unknown cross-encoder model "bogus-reranker"/,
   );
 });
@@ -156,9 +176,10 @@ test("runExperiment caches dense vectors across runs on the same corpus", async 
     chunks,
     queries: [] as EvalQuery[],
     querySetId: "qs_1",
+    corpusId: "corpus_1",
+    corpusChecksum: "checksum_1",
     embedder,
     denseCache: cache,
-    corpusId: "corpus_1",
     corpusVersion: 1,
   };
 
@@ -186,6 +207,8 @@ test("per-query metrics are recorded per query, not just aggregated", async () =
     chunks,
     queries,
     querySetId: "qs_1",
+    corpusId: "corpus_1",
+    corpusChecksum: "checksum_1",
     evalK: 1,
   });
 

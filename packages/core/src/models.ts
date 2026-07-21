@@ -72,12 +72,16 @@ export interface RunConfigRecord {
 
 export interface ExperimentRun {
   id: Id;
-  runConfigId: Id;
-  querySetId: Id;
   status: "pending" | "running" | "succeeded" | "failed";
   startedAt: ISODateTime;
   finishedAt: ISODateTime | null;
   commitHash: string;
+  config: RunConfigRecord;
+  corpusId: Id;
+  corpusChecksum: string;
+  querySetId: Id;
+  evalK: number;
+  fingerprint: string;
 }
 
 export interface RankedCandidate {

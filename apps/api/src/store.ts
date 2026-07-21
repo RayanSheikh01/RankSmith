@@ -1,6 +1,6 @@
-import type { Chunk, Corpus, RunConfigRecord } from "@ranksmith/core";
+import type { Chunk, Corpus, RunConfigRecord, SourceDocument } from "@ranksmith/core";
 import { newCorpusId, newId } from "@ranksmith/observability";
-import { ingestDocument, type ChunkingPreset } from "@ranksmith/ingestion";
+import { ingestDocument, checksum, type ChunkingPreset } from "@ranksmith/ingestion";
 import type { Qrels } from "@ranksmith/evaluation";
 import { InMemoryRepository, FileRepository, type Repository } from "@ranksmith/storage";
 import type { StoredDenseVectors, DenseVectorCache } from "@ranksmith/indexing-dense";
@@ -17,7 +17,12 @@ export interface DocumentInput {
 export interface CorpusRecord {
   corpus: Corpus;
   chunks: Chunk[];
-  documents: DocumentInput[];
+  /**
+   * The ingested documents, not the raw request bodies. Persisting these is what
+   * makes `Chunk.docId` resolvable — without them every stored chunk points at an
+   * id that exists in no record.
+   */
+  documents: SourceDocument[];
 }
 
 export interface QuerySetRecord {
@@ -108,28 +113,38 @@ export class RankSmithStore {
     documents: DocumentInput[],
     preset: ChunkingPreset,
   ): Promise<CorpusRecord> {
-    const corpus: Corpus = {
-      id: newCorpusId(),
-      name,
-      version: 1,
-      createdAt: new Date().toISOString(),
-    };
-    const checksums: string[] = [];
+    const corpusId = newCorpusId();
+    const version = 1;
     const chunks: Chunk[] = [];
+    const sources: SourceDocument[] = [];
     for (const doc of documents) {
       const result = ingestDocument({
-        corpusId: corpus.id,
-        corpusVersion: corpus.version,
+        corpusId,
+        corpusVersion: version,
         path: doc.path,
         title: doc.title,
         raw: doc.raw,
         preset,
       });
       chunks.push(...result.chunks);
-      checksums.push(result.document.checksum);
+      sources.push(result.document);
     }
-    const record = { corpus, chunks, checksums };
-    await this.corpora.save(corpus.id, record);
+    const corpus: Corpus = {
+      id: corpusId,
+      name,
+      version,
+      createdAt: new Date().toISOString(),
+      // Sorted before hashing so the same documents ingested in a different
+      // order produce the same corpus identity.
+      checksum: checksum(
+        sources
+          .map((d) => d.checksum)
+          .sort()
+          .join("\n"),
+      ),
+    };
+    const record: CorpusRecord = { corpus, chunks, documents: sources };
+    await this.corpora.save(corpusId, record);
     return record;
   }
 
@@ -172,10 +187,11 @@ export class RankSmithStore {
       chunks: record.chunks,
       queries,
       querySetId,
-      commitHash: gitCommit(),
+      commitHash: request.commitHash ?? gitCommit(),
       evalK: request.evalK,
       denseCache: repositoryVectorCache(this.vectors),
       corpusId: request.corpusId,
+      corpusChecksum: record.corpus.checksum,
       corpusVersion: record.corpus.version,
     });
     await this.runs.save(output.run.id, output);

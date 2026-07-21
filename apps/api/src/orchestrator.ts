@@ -6,7 +6,7 @@ import type {
   RunConfigRecord,
 } from "@ranksmith/core";
 import { newRunId, Timer, type Logger } from "@ranksmith/observability";
-import { validateRunConfig } from "@ranksmith/core";
+import { validateRunConfig, runFingerprint } from "@ranksmith/core";
 import {
   HybridRetriever,
   type RetrievedCandidate,
@@ -48,12 +48,18 @@ export interface RunInput {
   chunks: Chunk[];
   queries: EvalQuery[];
   querySetId: string;
+  /**
+   * Corpus identity. Both are required: a run artifact that cannot name the
+   * corpus it scored isn't self-describing, which is the whole point of
+   * persisting one.
+   */
+  corpusId: string;
+  corpusChecksum: string;
   embedder?: Embedder;
   crossEncoder?: CrossEncoder;
   denseCache?: DenseVectorCache;
-  corpusId?: string;
   corpusVersion?: number;
-  seed?: number;
+  /** Overrides the detected git commit; used by tests to pin a value. */
   commitHash?: string;
   /** Cutoff for metrics; defaults to the config topK. */
   evalK?: number;
@@ -131,10 +137,9 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
   const evalK = input.evalK ?? input.config.topK;
 
   const embedder = input.embedder ?? resolveEmbedder(input.config.dense.modelName);
-  const denseKey =
-    input.denseCache && input.corpusId
-      ? denseCacheKey(input.corpusId, input.corpusVersion ?? 1, input.config.dense.modelName)
-      : undefined;
+  const denseKey = input.denseCache
+    ? denseCacheKey(input.corpusId, input.corpusVersion ?? 1, input.config.dense.modelName)
+    : undefined;
   const crossEncoder =
     input.crossEncoder ??
     (input.config.rerankDepth > 0 && input.config.crossEncoderModel
@@ -201,14 +206,26 @@ export async function runExperiment(input: RunInput, logger?: Logger): Promise<R
   }
 
   const metrics = aggregateMetrics(perQueryMetrics, latencies, evalK);
+  // Every input that determined the numbers is embedded by value. Storing only a
+  // runConfigId would let a later edit to that config silently re-describe a run
+  // that has already been scored.
   const run: ExperimentRun = {
     id: runId,
-    runConfigId: input.config.id,
-    querySetId: input.querySetId,
     status: "succeeded",
     startedAt,
     finishedAt: new Date().toISOString(),
-    commitHash: gitCommit(),
+    commitHash: input.commitHash ?? gitCommit(),
+    config: input.config,
+    corpusId: input.corpusId,
+    corpusChecksum: input.corpusChecksum,
+    querySetId: input.querySetId,
+    evalK,
+    fingerprint: runFingerprint({
+      config: input.config,
+      corpusChecksum: input.corpusChecksum,
+      querySetId: input.querySetId,
+      evalK,
+    }),
   };
 
   log?.info("run complete", {

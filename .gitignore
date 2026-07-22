@@ -12,3 +12,4 @@ docs/superpowers/plans/
 DESIGN-*.md
 docs/superpowers/specs/
 implementation_plan.md
+.playwright-mcp/
